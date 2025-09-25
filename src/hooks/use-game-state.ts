@@ -46,7 +46,6 @@ export function useGameState(roomId: string) {
       setGame(offlineGame);
       setFen(offlineGame.fen());
       setPlayers({ white: {id: 'p1', name: 'White'}, black: {id: 'p2', name: 'Black'} });
-      setPlayerColor('w'); // In offline, you can control both, start as white
       updateStatus(offlineGame, { white: {id: 'p1', name: 'White'}, black: {id: 'p2', name: 'Black'} });
       setIsLoading(false);
       return;
@@ -128,10 +127,9 @@ export function useGameState(roomId: string) {
   const makeMove = useCallback((from: Square, to: Square): boolean => {
     const gameCopy = new Chess(fen);
     
-    // Determine whose turn it is supposed to be.
-    // For online, it's the playerColor. For offline, it's whoever's turn it is in the game state.
-    const currentTurn = isOffline ? gameCopy.turn() : playerColor;
-    if (!currentTurn || gameCopy.turn() !== currentTurn) {
+    const isMyTurn = isOffline || (playerColor && gameCopy.turn() === playerColor);
+    
+    if (!isMyTurn) {
         if (!isOffline) toast({ variant: 'destructive', title: 'Not your turn!' });
         return false;
     }
@@ -148,12 +146,11 @@ export function useGameState(roomId: string) {
       }
 
       if (isOffline) {
+        setGame(gameCopy); // This was the missing piece! Update the main game state.
         setFen(gameCopy.fen());
         setHistory(gameCopy.history());
         setLastMove({ from: move.from, to: move.to });
-        setGame(gameCopy);
         updateStatus(gameCopy, players);
-        setPlayerColor(gameCopy.turn()); // Follow the game's turn
       } else if (gameRef) {
         set(ref(database, `rooms/${roomId}/game`), {
             fen: gameCopy.fen(),

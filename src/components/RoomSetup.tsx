@@ -10,39 +10,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import useLocalStorage from '@/hooks/use-local-storage';
-import { generateSuggestedUsername } from '@/ai/flows/generate-suggested-username';
-import { Loader2, Wand2, Users, LogIn } from 'lucide-react';
+import { Loader2, Users, LogIn } from 'lucide-react';
 
 export function RoomSetup() {
   const router = useRouter();
   const { toast } = useToast();
   const [username, setUsername] = useLocalStorage('chess-username', '');
-  const [roomId, setRoomId] = useState('');
+  const [roomId, setRoomId] = useLocalStorage('chess-room', '');
   const [isLoading, setIsLoading] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  const handleGenerateUsername = async () => {
-    setIsGenerating(true);
-    try {
-      const result = await generateSuggestedUsername({});
-      if (result && result.username) {
-        setUsername(result.username);
-        toast({
-          title: "Username Generated!",
-          description: `We've suggested "${result.username}" for you.`,
-        });
-      }
-    } catch (error) {
-      console.error('Error generating username:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Could not generate a username. Please try again.',
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   const validateInputs = () => {
     if (!username.trim()) {
@@ -58,12 +33,31 @@ export function RoomSetup() {
 
   const createRoom = async () => {
     if (!validateInputs()) return;
+    if (!roomId.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Room ID Required',
+        description: 'Please enter a Room ID to create a room.',
+      });
+      return;
+    }
     setIsLoading(true);
 
-    const newRoomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const newRoomId = roomId.toUpperCase();
     const roomRef = ref(database, `rooms/${newRoomId}`);
 
     try {
+       const snapshot = await get(roomRef);
+      if (snapshot.exists()) {
+        toast({
+          variant: 'destructive',
+          title: 'Room Already Exists',
+          description: `A room with ID "${newRoomId}" already exists. Please choose another ID or join it.`,
+        });
+        setIsLoading(false);
+        return;
+      }
+
       await set(roomRef, {
         createdAt: serverTimestamp(),
         players: { white: username, black: null },
@@ -74,7 +68,7 @@ export function RoomSetup() {
           turn: 'w',
         },
       });
-      localStorage.setItem('chess-room', newRoomId);
+      
       router.push(`/play/${newRoomId}`);
     } catch (error) {
       console.error('Error creating room:', error);
@@ -104,16 +98,14 @@ export function RoomSetup() {
       if (snapshot.exists()) {
         const roomData = snapshot.val();
         
-        // Check for room expiry (1 hour)
         const oneHour = 60 * 60 * 1000;
         if (Date.now() - roomData.createdAt > oneHour) {
           toast({ variant: 'destructive', title: 'Room Expired', description: 'This room is over an hour old and has expired.' });
-          set(roomRef, null); // Clean up expired room
+          set(roomRef, null); 
           setIsLoading(false);
           return;
         }
 
-        // Assign player to an empty slot
         if (roomData.players.white === null || roomData.players.white === username) {
           await set(ref(database, `rooms/${roomId.toUpperCase()}/players/white`), username);
         } else if (roomData.players.black === null || roomData.players.black === username) {
@@ -124,7 +116,6 @@ export function RoomSetup() {
            return;
         }
 
-        localStorage.setItem('chess-room', roomId.toUpperCase());
         router.push(`/play/${roomId.toUpperCase()}`);
       } else {
         toast({
@@ -163,22 +154,13 @@ export function RoomSetup() {
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={isLoading}
               />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleGenerateUsername}
-                disabled={isLoading || isGenerating}
-                aria-label="Generate Username"
-              >
-                {isGenerating ? <Loader2 className="animate-spin" /> : <Wand2 />}
-              </Button>
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="room-id" className="text-base">Room ID (to join)</Label>
+            <Label htmlFor="room-id" className="text-base">Room ID</Label>
             <Input
               id="room-id"
-              placeholder="Enter Room ID"
+              placeholder="Enter Room ID to create or join"
               value={roomId}
               onChange={(e) => setRoomId(e.target.value)}
               disabled={isLoading}
@@ -190,7 +172,7 @@ export function RoomSetup() {
           <Button
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-lg py-6"
             onClick={createRoom}
-            disabled={isLoading}
+            disabled={isLoading || !roomId}
           >
             {isLoading ? <Loader2 className="animate-spin" /> : <Users />}
             Create New Room

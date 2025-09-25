@@ -1,0 +1,22 @@
+{
+  "name": "ChessCraft",
+  "short_name": "ChessCraft",
+  "description": "A real-time multiplayer chess game with offline support.",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#F5F5F5",
+  "background_color": "#F5F5F5",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait"
+}

@@ -6,13 +6,34 @@ import { ChessboardWrapper } from '@/components/Chessboard';
 import { GameInfo } from '@/components/GameInfo';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+import { Howl } from 'howler';
 
 export default function GamePage() {
   const params = useParams();
   const roomId = Array.isArray(params.roomId) ? params.roomId[0] : params.roomId;
-  const { toast } = useToast();
 
+  // Render loading state if roomId is not available yet
+  if (!roomId) {
+    return (
+      <div className="container mx-auto p-4 max-w-5xl">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2">
+            <Skeleton className="w-full aspect-square rounded-lg" />
+          </div>
+          <div>
+            <Skeleton className="w-full h-96 rounded-lg" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return <Game roomId={roomId} />;
+}
+
+function Game({ roomId }: { roomId: string }) {
+  const { toast } = useToast();
   const {
     fen,
     status,
@@ -21,12 +42,22 @@ export default function GamePage() {
     turn,
     isGameOver,
     makeMove,
+    sendRematch,
     isLoading,
     lastMove,
     handleSquareClick,
     selectedSquare,
     validMoves,
+    gameKey, // Key to force re-render
   } = useGameState(roomId);
+
+  const moveSound = useMemo(() => new Howl({ src: ['/sounds/move.mp3'], volume: 0.5 }), []);
+
+  useEffect(() => {
+    if (lastMove) {
+      moveSound.play();
+    }
+  }, [lastMove, moveSound]);
 
   useEffect(() => {
     // Online/offline detection for online games
@@ -41,6 +72,11 @@ export default function GamePage() {
       window.removeEventListener('offline', handleOffline);
     };
   }, [toast]);
+  
+  const handleRematch = () => {
+    sendRematch();
+    toast({ title: "Rematch requested", description: "Waiting for opponent to accept." });
+  }
 
   if (isLoading) {
     return (
@@ -71,6 +107,7 @@ export default function GamePage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <ChessboardWrapper
+            key={gameKey}
             fen={fen}
             playerColor={playerColor || 'w'}
             onMove={makeMove}
@@ -87,6 +124,8 @@ export default function GamePage() {
             turn={turn}
             playerColor={playerColor}
             players={players}
+            onRematch={handleRematch}
+            isGameOver={isGameOver}
           />
         </div>
       </div>

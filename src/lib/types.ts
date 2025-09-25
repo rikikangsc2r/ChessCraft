@@ -17,6 +17,10 @@ export type GameRoom = {
     white: Player | null;
     black: Player | null;
   };
+  rematch: {
+    white: boolean;
+    black: boolean;
+  };
   createdAt: number;
 };
 

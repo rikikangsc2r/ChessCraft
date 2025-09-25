@@ -2,6 +2,7 @@
 
 import { Chessboard } from "react-chessboard";
 import type { Square } from 'chess.js';
+import type { CSSProperties } from "react";
 
 interface ChessboardProps {
   fen: string;
@@ -29,24 +30,30 @@ export function ChessboardWrapper({
     return onMove(sourceSquare, targetSquare);
   }
 
-  const squareStyles: { [key in Square]?: React.CSSProperties } = {};
+  const getSquareStyles = () => {
+    const styles: { [key: string]: CSSProperties } = {};
 
-  if (lastMove) {
-    squareStyles[lastMove.from] = { backgroundColor: 'rgba(255, 255, 0, 0.4)' };
-    squareStyles[lastMove.to] = { backgroundColor: 'rgba(255, 255, 0, 0.4)' };
+    if (lastMove) {
+        styles[lastMove.from] = { backgroundColor: 'rgba(255, 255, 0, 0.4)' };
+        styles[lastMove.to] = { backgroundColor: 'rgba(255, 255, 0, 0.4)' };
+    }
+
+    validMoves.forEach(square => {
+        styles[square] = {
+            ...(styles[square] || {}),
+            background: 'radial-gradient(circle, rgba(0,0,0,.1) 25%, transparent 25%)',
+            borderRadius: '50%',
+        };
+    });
+    
+    if (selectedSquare) {
+        styles[selectedSquare] = {
+            ...(styles[selectedSquare] || {}),
+            backgroundColor: 'rgba(30, 144, 255, 0.5)'
+        };
+    }
+    return styles;
   }
-
-  validMoves.forEach(square => {
-    squareStyles[square] = {
-      background: 'radial-gradient(circle, rgba(0,0,0,.1) 25%, transparent 25%)',
-      borderRadius: '50%',
-    };
-  });
-  
-  if (selectedSquare) {
-      squareStyles[selectedSquare] = { backgroundColor: 'rgba(30, 144, 255, 0.5)' };
-  }
-
 
   return (
     <div className="w-full aspect-square shadow-2xl border-4 border-card rounded-lg overflow-hidden">
@@ -56,7 +63,7 @@ export function ChessboardWrapper({
         onSquareClick={onSquareClick}
         boardOrientation={playerColor === 'w' ? 'white' : 'black'}
         arePiecesDraggable={!isGameOver}
-        customSquareStyles={squareStyles}
+        customSquareStyles={getSquareStyles()}
       />
     </div>
   );

@@ -15,6 +15,12 @@ interface GameInfoProps {
 
 export function GameInfo({ status, turn, history, playerColor, players }: GameInfoProps) {
   const isMyTurn = turn === playerColor;
+
+  // Group history into pairs of moves [white, black]
+  const movePairs: [string, string | undefined][] = [];
+  for (let i = 0; i < history.length; i += 2) {
+    movePairs.push([history[i], history[i + 1]]);
+  }
   
   return (
     <Card className="shadow-lg h-full">
@@ -36,11 +42,12 @@ export function GameInfo({ status, turn, history, playerColor, players }: GameIn
       <CardContent className="h-full">
         <h3 className="font-semibold mb-2">Move History</h3>
         <ScrollArea className="h-48 md:h-64 border rounded-md">
-          <ol className="p-2 text-sm">
-            {history.map((move, index) => (
-              <li key={index} className="flex gap-4 p-1 rounded hover:bg-muted">
-                <span className="text-muted-foreground w-6">{Math.floor(index / 2) + 1}.</span>
-                <span>{move}</span>
+          <ol className="p-2 text-sm font-mono">
+            {movePairs.map(([whiteMove, blackMove], index) => (
+              <li key={index} className="grid grid-cols-[2rem_1fr_1fr] gap-2 p-1 rounded hover:bg-muted">
+                <span className="text-muted-foreground">{index + 1}.</span>
+                <span>{whiteMove}</span>
+                <span>{blackMove || ''}</span>
               </li>
             ))}
             {history.length === 0 && (

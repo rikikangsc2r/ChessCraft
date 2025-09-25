@@ -9,7 +9,18 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T) => voi
     }
     try {
       const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
+      if (item === null) return initialValue;
+      // Try to parse it as JSON, but if it fails, assume it's a plain string.
+      try {
+        return JSON.parse(item);
+      } catch (e) {
+        // If it was a plain string that's not valid JSON, it might be the intended value.
+        // This handles legacy values that were not JSON stringified.
+        if (typeof initialValue === 'string') {
+          return item as unknown as T;
+        }
+        return initialValue;
+      }
     } catch (error) {
       console.error(error);
       return initialValue;

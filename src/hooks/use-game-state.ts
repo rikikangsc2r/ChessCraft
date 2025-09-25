@@ -14,7 +14,6 @@ export function useGameState(roomId: string) {
   const [game, setGame] = useState(new Chess());
   const [fen, setFen] = useState(game.fen());
   const [status, setStatus] = useState('');
-  const [history, setHistory] = useState<string[]>([]);
   const [players, setPlayers] = useState<{ white: Player | null, black: Player | null }>({ white: null, black: null });
   const [playerColor, setPlayerColor] = useState<'w' | 'b' | null>(null);
   const [lastMove, setLastMove] = useState<{ from: Square, to: Square } | null>(null);
@@ -80,7 +79,6 @@ export function useGameState(roomId: string) {
           const newGame = new Chess(roomData.game.fen);
           setGame(newGame);
           setFen(newGame.fen());
-          setHistory(roomData.game.history || []);
           setPlayers(roomData.players);
           setLastMove(roomData.game.lastMove || null);
 
@@ -129,16 +127,14 @@ export function useGameState(roomId: string) {
     try {
       moveResult = gameCopy.move({ from, to, promotion: 'q' });
     } catch (e) {
-      // invalid move
+      console.error("Invalid move:", e instanceof Error ? e.message : e);
       return false;
     }
 
-    // if move is invalid, return false
     if (moveResult === null) {
       return false;
     }
     
-    // valid move, update db
     if (gameRef) {
         const newGameState = {
             fen: gameCopy.fen(),
@@ -168,7 +164,7 @@ export function useGameState(roomId: string) {
         const moveSuccess = makeMove(selectedSquare, square);
         
         if (!moveSuccess) {
-            if (piece && piece.color === playerColor) {
+            if (piece && piece.color === playerColor && piece.color === game.turn()) {
                 const newMoves = game.moves({ square, verbose: true }).map(m => m.to);
                 setSelectedSquare(square);
                 setValidMoves(newMoves);
@@ -188,7 +184,6 @@ export function useGameState(roomId: string) {
   return {
     fen,
     status,
-    history,
     players,
     playerColor,
     turn: game.turn(),

@@ -1,6 +1,5 @@
 "use client";
 
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { Player } from '@/lib/types';
@@ -8,20 +7,13 @@ import type { Player } from '@/lib/types';
 interface GameInfoProps {
   status: string;
   turn: 'w' | 'b';
-  history: string[];
   playerColor: 'w' | 'b' | null;
   players: { white: Player | null, black: Player | null };
 }
 
-export function GameInfo({ status, turn, history, playerColor, players }: GameInfoProps) {
+export function GameInfo({ status, turn, playerColor, players }: GameInfoProps) {
   const isMyTurn = turn === playerColor;
 
-  // Group history into pairs of moves [white, black]
-  const movePairs: [string, string | undefined][] = [];
-  for (let i = 0; i < history.length; i += 2) {
-    movePairs.push([history[i], history[i + 1]]);
-  }
-  
   return (
     <Card className="shadow-lg h-full">
       <CardHeader>
@@ -39,22 +31,8 @@ export function GameInfo({ status, turn, history, playerColor, players }: GameIn
             <p><strong>Black:</strong> {players.black?.name || '...'}</p>
         </div>
       </CardHeader>
-      <CardContent className="h-full">
-        <h3 className="font-semibold mb-2">Move History</h3>
-        <ScrollArea className="h-48 md:h-64 border rounded-md">
-          <ol className="p-2 text-sm font-mono">
-            {movePairs.map(([whiteMove, blackMove], index) => (
-              <li key={index} className="grid grid-cols-[2rem_1fr_1fr] gap-2 p-1 rounded hover:bg-muted">
-                <span className="text-muted-foreground">{index + 1}.</span>
-                <span>{whiteMove}</span>
-                <span>{blackMove || ''}</span>
-              </li>
-            ))}
-            {history.length === 0 && (
-              <li className="p-2 text-muted-foreground">No moves yet.</li>
-            )}
-          </ol>
-        </ScrollArea>
+      <CardContent>
+        {/* Move History Removed */}
       </CardContent>
     </Card>
   );

@@ -16,7 +16,6 @@ export default function GamePage() {
   const {
     fen,
     status,
-    history,
     players,
     playerColor,
     turn,
@@ -86,7 +85,6 @@ export default function GamePage() {
           <GameInfo
             status={status}
             turn={turn}
-            history={history}
             playerColor={playerColor}
             players={players}
           />

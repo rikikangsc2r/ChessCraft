@@ -20,12 +20,23 @@ export function useGameState(roomId: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [validMoves, setValidMoves] = useState<Square[]>([]);
+  const isGameOver = game.isGameOver();
 
   const deviceId = useDeviceId();
   const { toast } = useToast();
   const router = useRouter();
 
   const gameRef = useMemo(() => ref(database, `rooms/${roomId}`), [roomId]);
+  
+  const moveSound = useMemo(() => typeof window !== 'undefined' ? new Audio('https://listudy.org/sounds/standard/Move.mp3') : null, []);
+  const captureSound = useMemo(() => typeof window !== 'undefined' ? new Audio('https://listudy.org/sounds/standard/Capture.mp3') : null, []);
+  const gameEndSound = useMemo(() => typeof window !== 'undefined' ? new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_WEBM_/default/game-end.webm') : null, []);
+
+  useEffect(() => {
+    if (isGameOver) {
+      gameEndSound?.play().catch(e => console.error("Error playing game end sound:", e));
+    }
+  }, [isGameOver, gameEndSound]);
   
   const updateStatus = useCallback((currentGame: Chess, currentPlayers: { white: Player | null, black: Player | null }) => {
     let newStatus = '';
@@ -34,7 +45,10 @@ export function useGameState(roomId: string) {
     else if (currentGame.isStalemate()) newStatus = 'Stalemate!';
     else if (!currentPlayers.white || !currentPlayers.black) newStatus = 'Waiting for opponent...';
     else newStatus = `${currentGame.turn() === 'w' ? 'White' : 'Black'} to move.`;
-    if (currentGame.isCheck()) newStatus = `Check! ${newStatus}`;
+    
+    if (currentGame.isCheck()) {
+        newStatus = `Check! ${newStatus}`;
+    }
     
     setStatus(newStatus);
   }, []);
@@ -113,21 +127,22 @@ export function useGameState(roomId: string) {
 
   const makeMove = useCallback((from: Square, to: Square): boolean => {
     if (!playerColor || game.turn() !== playerColor) {
-      toast({ variant: 'destructive', title: 'Not your turn!' });
+      if(playerColor) toast({ variant: 'destructive', title: 'Not your turn!' });
       return false;
     }
     if (!players.white || !players.black) {
         toast({ variant: 'destructive', title: 'Waiting for opponent', description: 'An opponent must join before you can move.' });
         return false;
     }
-
+    
     const gameCopy = new Chess(fen);
     let moveResult = null;
 
     try {
       moveResult = gameCopy.move({ from, to, promotion: 'q' });
     } catch (e) {
-      console.error("Invalid move:", e instanceof Error ? e.message : e);
+      // This case should ideally not be reached with proper UI validation
+      console.error("Invalid move:", e instanceof Error ? e.message : String(e));
       return false;
     }
 
@@ -138,48 +153,50 @@ export function useGameState(roomId: string) {
     if (gameRef) {
         const newGameState = {
             fen: gameCopy.fen(),
-            history: gameCopy.history(),
             lastMove: { from: moveResult.from, to: moveResult.to },
             turn: gameCopy.turn(),
         };
         set(ref(database, `rooms/${roomId}/game`), newGameState);
     }
     
+    if (moveResult.captured) {
+        captureSound?.play().catch(e => console.error("Error playing capture sound:", e));
+    } else {
+        moveSound?.play().catch(e => console.error("Error playing move sound:", e));
+    }
+
     setSelectedSquare(null);
     setValidMoves([]);
     return true;
-  }, [game.turn(), playerColor, gameRef, roomId, players, toast, fen]);
+  }, [game, playerColor, fen, gameRef, roomId, players, toast, captureSound, moveSound]);
 
   const handleSquareClick = useCallback((square: Square) => {
-    if (!playerColor) return;
-
-    const resetSelection = () => {
-        setSelectedSquare(null);
-        setValidMoves([]);
-    };
+    if (!playerColor || isGameOver) return;
 
     const piece = game.get(square);
 
+    // If a square is already selected, try to move
     if (selectedSquare) {
-        const moveSuccess = makeMove(selectedSquare, square);
-        
-        if (!moveSuccess) {
-            if (piece && piece.color === playerColor && piece.color === game.turn()) {
-                const newMoves = game.moves({ square, verbose: true }).map(m => m.to);
-                setSelectedSquare(square);
-                setValidMoves(newMoves);
-            } else {
-                resetSelection();
-            }
-        }
-    } else {
-      if (piece && piece.color === playerColor && piece.color === game.turn()) {
-        const moves = game.moves({ square, verbose: true }).map(m => m.to);
-        setSelectedSquare(square);
-        setValidMoves(moves);
+      // Check if the clicked square is a valid move for the selected piece
+      const isMoveValid = validMoves.includes(square);
+      if (isMoveValid) {
+        makeMove(selectedSquare, square);
+        // State will be reset inside makeMove
+        return;
       }
     }
-  }, [game, makeMove, selectedSquare, playerColor]);
+      
+    // If the clicked square has a piece of the current player's color, select it
+    if (piece && piece.color === playerColor && piece.color === game.turn()) {
+      const newMoves = game.moves({ square, verbose: true }).map(m => m.to);
+      setSelectedSquare(square);
+      setValidMoves(newMoves);
+    } else {
+      // Otherwise, deselect
+      setSelectedSquare(null);
+      setValidMoves([]);
+    }
+  }, [game, playerColor, selectedSquare, validMoves, makeMove, isGameOver]);
 
   return {
     fen,
@@ -187,7 +204,7 @@ export function useGameState(roomId: string) {
     players,
     playerColor,
     turn: game.turn(),
-    isGameOver: game.isGameOver(),
+    isGameOver,
     lastMove,
     makeMove,
     isLoading,

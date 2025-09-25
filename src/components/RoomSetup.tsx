@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useDeviceId } from '@/hooks/use-device-id';
-import { Loader2, Users, LogIn, Swords } from 'lucide-react';
+import { Loader2, Users, LogIn } from 'lucide-react';
 import type { GameRoom } from '@/lib/types';
 
 export function RoomSetup() {
@@ -159,10 +159,6 @@ export function RoomSetup() {
     }
   };
 
-  const playOffline = () => {
-    router.push('/play/offline');
-  };
-
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-4 bg-background">
       <Card className="w-full max-w-md shadow-2xl">
@@ -221,25 +217,6 @@ export function RoomSetup() {
           >
             {isLoading ? <Loader2 className="animate-spin" /> : <LogIn />}
             Join Room
-          </Button>
-           <div className="relative w-full">
-            <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                Offline Play
-                </span>
-            </div>
-          </div>
-          <Button
-            className="w-full text-lg py-6"
-            variant="secondary"
-            onClick={playOffline}
-            disabled={isLoading}
-          >
-             {isLoading ? <Loader2 className="animate-spin" /> : <Swords />}
-            Play Offline
           </Button>
         </CardFooter>
       </Card>

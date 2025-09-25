@@ -12,7 +12,6 @@ export default function GamePage() {
   const params = useParams();
   const roomId = Array.isArray(params.roomId) ? params.roomId[0] : params.roomId;
   const { toast } = useToast();
-  const isOffline = roomId === 'offline';
 
   const {
     fen,
@@ -31,8 +30,6 @@ export default function GamePage() {
   } = useGameState(roomId);
 
   useEffect(() => {
-    if (isOffline) return;
-
     // Online/offline detection for online games
     const handleOnline = () => toast({ title: "You are back online!", description: "Game sync has resumed." });
     const handleOffline = () => toast({ variant: 'destructive', title: "You are offline", description: "You can't make moves until you reconnect." });
@@ -44,7 +41,7 @@ export default function GamePage() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [toast, isOffline]);
+  }, [toast]);
 
   if (isLoading) {
     return (
@@ -61,11 +58,8 @@ export default function GamePage() {
     );
   }
   
-  const roomTitle = isOffline ? "Offline Game" : `Room: ${roomId}`;
-  const effectivePlayerColor = isOffline ? turn : (playerColor || 'w');
-  const playerInfo = isOffline 
-    ? "You control both sides."
-    : playerColor 
+  const roomTitle = `Room: ${roomId}`;
+  const playerInfo = playerColor 
       ? `You are playing as ${playerColor === 'w' ? 'White' : 'Black'}`
       : "You are a spectator.";
 
@@ -79,7 +73,7 @@ export default function GamePage() {
         <div className="lg:col-span-2">
           <ChessboardWrapper
             fen={fen}
-            playerColor={effectivePlayerColor}
+            playerColor={playerColor || 'w'}
             onMove={makeMove}
             isGameOver={isGameOver}
             lastMove={lastMove}

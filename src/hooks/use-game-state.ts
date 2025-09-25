@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Chess, type Square, type Piece } from 'chess.js';
+import { Chess, type Square } from 'chess.js';
 import { ref, onValue, set, get } from 'firebase/database';
 import { database } from '@/lib/firebase';
 import { useDeviceId } from './use-device-id';
@@ -26,34 +26,21 @@ export function useGameState(roomId: string) {
   const { toast } = useToast();
   const router = useRouter();
 
-  const isOffline = roomId === 'offline';
-  const gameRef = useMemo(() => isOffline ? null : ref(database, `rooms/${roomId}`), [roomId, isOffline]);
+  const gameRef = useMemo(() => ref(database, `rooms/${roomId}`), [roomId]);
   
   const updateStatus = useCallback((currentGame: Chess, currentPlayers: { white: Player | null, black: Player | null }) => {
     let newStatus = '';
     if (currentGame.isCheckmate()) newStatus = `Checkmate! ${currentGame.turn() === 'w' ? 'Black' : 'White'} wins.`;
     else if (currentGame.isDraw()) newStatus = 'Draw!';
     else if (currentGame.isStalemate()) newStatus = 'Stalemate!';
-    else if (!isOffline && (!currentPlayers.white || !currentPlayers.black)) newStatus = 'Waiting for opponent...';
+    else if (!currentPlayers.white || !currentPlayers.black) newStatus = 'Waiting for opponent...';
     else newStatus = `${currentGame.turn() === 'w' ? 'White' : 'Black'} to move.`;
     if (currentGame.isCheck()) newStatus = `Check! ${newStatus}`;
     
     setStatus(newStatus);
-  }, [isOffline]);
+  }, []);
 
   useEffect(() => {
-    if (isOffline) {
-      const offlineGame = new Chess();
-      setGame(offlineGame);
-      setFen(offlineGame.fen());
-      setHistory([]);
-      const offlinePlayers = { white: {id: 'p1', name: 'White'}, black: {id: 'p2', name: 'Black'} };
-      setPlayers(offlinePlayers);
-      updateStatus(offlineGame, offlinePlayers);
-      setIsLoading(false);
-      return;
-    }
-    
     if (!deviceId || !gameRef) return;
 
     const assignPlayerAndSubscribe = async () => {
@@ -124,57 +111,53 @@ export function useGameState(roomId: string) {
         unsubscribe();
       }
     };
-  }, [gameRef, roomId, deviceId, router, toast, isOffline, updateStatus, status]);
+  }, [gameRef, roomId, deviceId, router, toast, updateStatus, status]);
 
   const makeMove = useCallback((from: Square, to: Square): boolean => {
+    // Create a copy of the game to simulate the move.
     const gameCopy = new Chess(game.fen());
     
     let moveResult;
     try {
+        // Attempt the move
         moveResult = gameCopy.move({ from, to, promotion: 'q' });
     } catch(e) {
+        // This can happen if the move is illegal for any reason.
         console.error("Invalid move:", {from, to, promotion: 'q'});
         return false;
     }
     
+    // If the move is illegal, chess.js returns null
     if (moveResult === null) return false;
 
-    if (isOffline) {
-        setGame(gameCopy);
-        setFen(gameCopy.fen());
-        setHistory(gameCopy.history());
-        setLastMove({ from: moveResult.from, to: moveResult.to });
-        updateStatus(gameCopy, players);
-    } else {
-        if (!playerColor || game.turn() !== playerColor) {
-            toast({ variant: 'destructive', title: 'Not your turn!' });
-            return false;
-        }
-        if (!players.white || !players.black) {
-            toast({ variant: 'destructive', title: 'Waiting for opponent', description: 'An opponent must join before you can move.' });
-            return false;
-        }
-        if (gameRef) {
-            const newGameState = {
-                fen: gameCopy.fen(),
-                history: gameCopy.history(),
-                lastMove: { from: moveResult.from, to: moveResult.to },
-                turn: gameCopy.turn(),
-            };
-            set(ref(database, `rooms/${roomId}/game`), newGameState);
-        }
+    // For online games, check turns and update Firebase.
+    if (!playerColor || game.turn() !== playerColor) {
+        toast({ variant: 'destructive', title: 'Not your turn!' });
+        return false;
+    }
+    if (!players.white || !players.black) {
+        toast({ variant: 'destructive', title: 'Waiting for opponent', description: 'An opponent must join before you can move.' });
+        return false;
+    }
+    if (gameRef) {
+        const newGameState = {
+            fen: gameCopy.fen(),
+            history: gameCopy.history(),
+            lastMove: { from: moveResult.from, to: moveResult.to },
+            turn: gameCopy.turn(),
+        };
+        // Update the game state in Firebase.
+        set(ref(database, `rooms/${roomId}/game`), newGameState);
     }
     
     // Reset selection after a successful move
     setSelectedSquare(null);
     setValidMoves([]);
     return true;
-  }, [game, isOffline, playerColor, gameRef, roomId, players, toast, updateStatus]);
+  }, [game, playerColor, gameRef, roomId, players, toast]);
 
   const handleSquareClick = useCallback((square: Square) => {
-    const piece = game.get(square);
-    const currentTurn = game.turn();
-    const effectiveTurn = isOffline ? currentTurn : playerColor;
+    if (!playerColor) return;
 
     // Function to clear selections
     const resetSelection = () => {
@@ -182,33 +165,33 @@ export function useGameState(roomId: string) {
         setValidMoves([]);
     };
 
+    const piece = game.get(square);
+
     if (selectedSquare) {
         // A square is already selected, try to move
         const moveSuccess = makeMove(selectedSquare, square);
         
-        if (moveSuccess) {
-            // successful move already resets selection in makeMove
-            return;
+        if (!moveSuccess) {
+            // If move failed, check if the user is selecting another one of their pieces
+            if (piece && piece.color === playerColor) {
+                const newMoves = game.moves({ square, verbose: true }).map(m => m.to);
+                setSelectedSquare(square);
+                setValidMoves(newMoves);
+            } else {
+                // Clicked on an invalid square or opponent's piece, so deselect
+                resetSelection();
+            }
         }
-
-        // If move failed, check if the user is selecting another one of their pieces
-        if (piece && piece.color === effectiveTurn) {
-            const newMoves = game.moves({ square, verbose: true }).map(m => m.to);
-            setSelectedSquare(square);
-            setValidMoves(newMoves);
-        } else {
-            // Clicked on an invalid square or opponent's piece, so deselect
-            resetSelection();
-        }
+        // if move was successful, makeMove already resets selection.
     } else {
-      // No square selected, select one if it's a valid piece
-      if (piece && piece.color === effectiveTurn) {
+      // No square selected, select one if it's a valid piece for the current player
+      if (piece && piece.color === playerColor && piece.color === game.turn()) {
         const moves = game.moves({ square, verbose: true }).map(m => m.to);
         setSelectedSquare(square);
         setValidMoves(moves);
       }
     }
-  }, [game, makeMove, selectedSquare, playerColor, isOffline]);
+  }, [game, makeMove, selectedSquare, playerColor]);
 
   return {
     fen,

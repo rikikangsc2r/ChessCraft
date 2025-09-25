@@ -47,8 +47,9 @@ export function useGameState(roomId: string) {
       setGame(offlineGame);
       setFen(offlineGame.fen());
       setHistory([]);
-      setPlayers({ white: {id: 'p1', name: 'White'}, black: {id: 'p2', name: 'Black'} });
-      updateStatus(offlineGame, { white: {id: 'p1', name: 'White'}, black: {id: 'p2', name: 'Black'} });
+      const offlinePlayers = { white: {id: 'p1', name: 'White'}, black: {id: 'p2', name: 'Black'} };
+      setPlayers(offlinePlayers);
+      updateStatus(offlineGame, offlinePlayers);
       setIsLoading(false);
       return;
     }
@@ -127,17 +128,16 @@ export function useGameState(roomId: string) {
 
   const makeMove = useCallback((from: Square, to: Square): boolean => {
     const gameCopy = new Chess(game.fen());
-    let moveResult = null;
+    
+    let moveResult;
     try {
-      moveResult = gameCopy.move({ from, to, promotion: 'q' });
-    } catch (e) {
-        // This catches illegal moves from chess.js
+        moveResult = gameCopy.move({ from, to, promotion: 'q' });
+    } catch(e) {
+        console.error("Invalid move:", {from, to, promotion: 'q'});
         return false;
     }
-
-    if (moveResult === null) {
-      return false;
-    }
+    
+    if (moveResult === null) return false;
 
     if (isOffline) {
         setGame(gameCopy);
@@ -165,6 +165,9 @@ export function useGameState(roomId: string) {
         }
     }
     
+    // Reset selection after a successful move
+    setSelectedSquare(null);
+    setValidMoves([]);
     return true;
   }, [game, isOffline, playerColor, gameRef, roomId, players, toast, updateStatus]);
 
@@ -184,7 +187,7 @@ export function useGameState(roomId: string) {
         const moveSuccess = makeMove(selectedSquare, square);
         
         if (moveSuccess) {
-            resetSelection();
+            // successful move already resets selection in makeMove
             return;
         }
 

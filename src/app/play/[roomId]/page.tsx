@@ -58,13 +58,18 @@ export default function GamePage() {
     <div className="container mx-auto p-4 max-w-5xl">
        <div className="text-center mb-4">
         <h1 className="text-2xl font-headline">Room: {roomId}</h1>
-        <p className="text-muted-foreground">You are playing as {playerColor === 'w' ? 'White' : 'Black'}</p>
+        {playerColor && (
+          <p className="text-muted-foreground">You are playing as {playerColor === 'w' ? 'White' : 'Black'}</p>
+        )}
+        {!playerColor && (
+          <p className="text-muted-foreground">You are a spectator.</p>
+        )}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <ChessboardWrapper
             fen={fen}
-            playerColor={playerColor}
+            playerColor={playerColor || 'w'}
             onMove={makeMove}
             isGameOver={isGameOver}
           />

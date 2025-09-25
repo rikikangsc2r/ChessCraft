@@ -22,7 +22,7 @@ export function ChessboardWrapper({ fen, playerColor, onMove, isGameOver }: Ches
         position={fen}
         onPieceDrop={onDrop}
         boardOrientation={playerColor === 'w' ? 'white' : 'black'}
-        arePiecesDraggable={!isGameOver}
+        arePiecesDraggable={!isGameOver && playerColor !== null}
       />
     </div>
   );

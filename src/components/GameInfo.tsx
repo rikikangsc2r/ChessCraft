@@ -9,7 +9,7 @@ interface GameInfoProps {
   status: string;
   turn: 'w' | 'b';
   history: string[];
-  playerColor: 'w' | 'b';
+  playerColor: 'w' | 'b' | null;
   players: { white: Player | null, black: Player | null };
 }
 
@@ -21,9 +21,11 @@ export function GameInfo({ status, turn, history, playerColor, players }: GameIn
       <CardHeader>
         <CardTitle className="font-headline text-2xl">Game Info</CardTitle>
         <div className="pt-2">
-            <Badge variant={isMyTurn ? "default" : "secondary"}>
-                {isMyTurn ? "Your Turn" : "Opponent's Turn"}
-            </Badge>
+            {playerColor && (
+              <Badge variant={isMyTurn ? "default" : "secondary"}>
+                  {isMyTurn ? "Your Turn" : "Opponent's Turn"}
+              </Badge>
+            )}
             <p className="text-muted-foreground pt-2">{status}</p>
         </div>
         <div className="pt-2 text-sm">

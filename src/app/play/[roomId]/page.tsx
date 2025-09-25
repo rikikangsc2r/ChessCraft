@@ -12,6 +12,7 @@ export default function GamePage() {
   const params = useParams();
   const roomId = Array.isArray(params.roomId) ? params.roomId[0] : params.roomId;
   const { toast } = useToast();
+  const isOffline = roomId === 'offline';
 
   const {
     fen,
@@ -23,12 +24,18 @@ export default function GamePage() {
     isGameOver,
     makeMove,
     isLoading,
+    lastMove,
+    handleSquareClick,
+    selectedSquare,
+    validMoves,
   } = useGameState(roomId);
 
   useEffect(() => {
-    // Online/offline detection
+    if (isOffline) return;
+
+    // Online/offline detection for online games
     const handleOnline = () => toast({ title: "You are back online!", description: "Game sync has resumed." });
-    const handleOffline = () => toast({ variant: 'destructive', title: "You are offline", description: "You can play locally, but moves won't be synced." });
+    const handleOffline = () => toast({ variant: 'destructive', title: "You are offline", description: "You can't make moves until you reconnect." });
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -37,7 +44,7 @@ export default function GamePage() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [toast]);
+  }, [toast, isOffline]);
 
   if (isLoading) {
     return (
@@ -54,16 +61,18 @@ export default function GamePage() {
     );
   }
   
+  const roomTitle = isOffline ? "Offline Game" : `Room: ${roomId}`;
+  const playerInfo = isOffline 
+    ? "You control both sides."
+    : playerColor 
+      ? `You are playing as ${playerColor === 'w' ? 'White' : 'Black'}`
+      : "You are a spectator.";
+
   return (
     <div className="container mx-auto p-4 max-w-5xl">
        <div className="text-center mb-4">
-        <h1 className="text-2xl font-headline">Room: {roomId}</h1>
-        {playerColor && (
-          <p className="text-muted-foreground">You are playing as {playerColor === 'w' ? 'White' : 'Black'}</p>
-        )}
-        {!playerColor && (
-          <p className="text-muted-foreground">You are a spectator.</p>
-        )}
+        <h1 className="text-2xl font-headline">{roomTitle}</h1>
+        <p className="text-muted-foreground">{playerInfo}</p>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
@@ -72,6 +81,10 @@ export default function GamePage() {
             playerColor={playerColor || 'w'}
             onMove={makeMove}
             isGameOver={isGameOver}
+            lastMove={lastMove}
+            validMoves={validMoves}
+            onSquareClick={handleSquareClick}
+            selectedSquare={selectedSquare}
           />
         </div>
         <div className="lg:col-span-1">

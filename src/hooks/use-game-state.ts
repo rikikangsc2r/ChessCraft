@@ -90,7 +90,7 @@ export function useGameState(roomId: string) {
           const newGame = new Chess(roomData.game.fen);
           setGame(newGame);
           setFen(newGame.fen());
-          setHistory(newGame.history());
+          setHistory(roomData.game.history || []);
           setPlayers(roomData.players);
           setLastMove(roomData.game.lastMove || null);
 
@@ -145,19 +145,21 @@ export function useGameState(roomId: string) {
           return false; // Invalid move
       }
 
+      const newGameState = {
+        fen: gameCopy.fen(),
+        history: gameCopy.history(),
+        lastMove: { from: move.from, to: move.to },
+        turn: gameCopy.turn(),
+      };
+
       if (isOffline) {
-        setGame(gameCopy); // This was the missing piece! Update the main game state.
-        setFen(gameCopy.fen());
-        setHistory(gameCopy.history());
-        setLastMove({ from: move.from, to: move.to });
+        setGame(gameCopy);
+        setFen(newGameState.fen);
+        setHistory(newGameState.history);
+        setLastMove(newGameState.lastMove);
         updateStatus(gameCopy, players);
       } else if (gameRef) {
-        set(ref(database, `rooms/${roomId}/game`), {
-            fen: gameCopy.fen(),
-            history: gameCopy.history(),
-            lastMove: { from: move.from, to: move.to },
-            turn: gameCopy.turn(),
-        });
+        set(ref(database, `rooms/${roomId}/game`), newGameState);
       }
       return true;
 

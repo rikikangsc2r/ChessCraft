@@ -5,20 +5,20 @@ import { useRouter } from 'next/navigation';
 import { Chess, type Square } from 'chess.js';
 import { ref, onValue, set, get } from 'firebase/database';
 import { database } from '@/lib/firebase';
-import useLocalStorage from './use-local-storage';
+import { useDeviceId } from './use-device-id';
 import { useToast } from './use-toast';
-import type { GameRoom } from '@/lib/types';
+import type { GameRoom, Player } from '@/lib/types';
 
 export function useGameState(roomId: string) {
   const [game, setGame] = useState(new Chess());
   const [fen, setFen] = useState(game.fen());
   const [status, setStatus] = useState('');
   const [history, setHistory] = useState<string[]>([]);
-  const [players, setPlayers] = useState<{ white: string | null, black: string | null }>({ white: null, black: null });
+  const [players, setPlayers] = useState<{ white: Player | null, black: Player | null }>({ white: null, black: null });
   const [playerColor, setPlayerColor] = useState<'w' | 'b'>('w');
   const [lastMove, setLastMove] = useState<{ from: Square, to: Square } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [username] = useLocalStorage('chess-username', '');
+  const deviceId = useDeviceId();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -26,42 +26,38 @@ export function useGameState(roomId: string) {
   
   useEffect(() => {
     const assignPlayer = async () => {
-        const snapshot = await get(gameRef);
-        if (!snapshot.exists()) {
-            toast({ variant: 'destructive', title: 'Error', description: 'This room does not exist.' });
-            router.push('/');
-            return;
-        }
-
-        const roomData: GameRoom = snapshot.val();
-        
-        const oneHour = 60 * 60 * 1000;
-        if (roomData.createdAt && (Date.now() - roomData.createdAt > oneHour)) {
-          toast({ variant: 'destructive', title: 'Room Expired', description: 'This room is over an hour old and has expired.' });
-          set(gameRef, null);
+      const snapshot = await get(gameRef);
+      if (!snapshot.exists()) {
+          toast({ variant: 'destructive', title: 'Error', description: 'This room does not exist.' });
           router.push('/');
           return;
-        }
+      }
 
-        let assignedColor: 'w' | 'b' | null = null;
-        if (roomData.players.white === username) assignedColor = 'w';
-        else if (roomData.players.black === username) assignedColor = 'b';
-        else if (roomData.players.white === null) {
-            await set(ref(database, `rooms/${roomId}/players/white`), username);
-            assignedColor = 'w';
-        } else if (roomData.players.black === null) {
-            await set(ref(database, `rooms/${roomId}/players/black`), username);
-            assignedColor = 'b';
-        }
+      const roomData: GameRoom = snapshot.val();
+      
+      const oneHour = 60 * 60 * 1000;
+      if (roomData.createdAt && (Date.now() - roomData.createdAt > oneHour)) {
+        toast({ variant: 'destructive', title: 'Room Expired', description: 'This room is over an hour old and has expired.' });
+        set(gameRef, null);
+        router.push('/');
+        return;
+      }
 
-        if (assignedColor) {
-            setPlayerColor(assignedColor);
-        } else {
-            if (roomData.players.white !== username && roomData.players.black !== username) {
-                toast({ title: "Room is full", description: "You are now a spectator." });
-                setPlayerColor('w'); 
-            }
+      let assignedColor: 'w' | 'b' | null = null;
+      if (roomData.players.white?.id === deviceId) assignedColor = 'w';
+      else if (roomData.players.black?.id === deviceId) assignedColor = 'b';
+      // The logic to auto-assign a player if a slot is empty is primarily in RoomSetup.
+      // Here, we just determine our color if we are already in the room.
+
+      if (assignedColor) {
+        setPlayerColor(assignedColor);
+      } else {
+        // If deviceId doesn't match either player, they are a spectator.
+        if (roomData.players.white && roomData.players.black) {
+          toast({ title: "Room is full", description: "You are now a spectator." });
+          setPlayerColor('w'); // Spectators default to white's perspective
         }
+      }
     };
     
     assignPlayer();
@@ -81,6 +77,7 @@ export function useGameState(roomId: string) {
         else if (newGame.isDraw()) currentStatus = 'Draw!';
         else if (newGame.isStalemate()) currentStatus = 'Stalemate!';
         else if (newGame.isCheck()) currentStatus = 'Check!';
+        else if (!roomData.players.white || !roomData.players.black) currentStatus = 'Waiting for opponent...';
         else currentStatus = `${newGame.turn() === 'w' ? 'White' : 'Black'} to move.`;
         setStatus(currentStatus);
         
@@ -95,7 +92,7 @@ export function useGameState(roomId: string) {
     });
 
     return () => unsubscribe();
-  }, [gameRef, roomId, username, router, toast, status]);
+  }, [gameRef, roomId, deviceId, router, toast, status]);
 
   const makeMove = useCallback((from: Square, to: Square): boolean => {
     if (game.turn() !== playerColor) {
@@ -103,11 +100,17 @@ export function useGameState(roomId: string) {
       return false;
     }
     
+    if (!players.white || !players.black) {
+      toast({ variant: 'destructive', title: 'Waiting for opponent', description: 'An opponent must join before you can move.' });
+      return false;
+    }
+
     const gameCopy = new Chess(game.fen());
     try {
       const move = gameCopy.move({ from, to, promotion: 'q' });
       if (move) {
         set(ref(database, `rooms/${roomId}/game`), {
+            ...game,
             fen: gameCopy.fen(),
             history: gameCopy.history(),
             lastMove: { from: move.from, to: move.to },
@@ -121,7 +124,7 @@ export function useGameState(roomId: string) {
       console.log('Invalid move:', e);
       return false;
     }
-  }, [game, playerColor, roomId, status, toast]);
+  }, [game, playerColor, roomId, status, toast, players]);
 
   return {
     board: game.board(),

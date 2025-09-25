@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import useLocalStorage from '@/hooks/use-local-storage';
+import { useDeviceId } from '@/hooks/use-device-id';
 import { Loader2, Users, LogIn } from 'lucide-react';
 
 export function RoomSetup() {
@@ -18,6 +19,7 @@ export function RoomSetup() {
   const [username, setUsername] = useLocalStorage('chess-username', '');
   const [roomId, setRoomId] = useLocalStorage('chess-room', '');
   const [isLoading, setIsLoading] = useState(false);
+  const deviceId = useDeviceId();
 
   const validateInputs = () => {
     if (!username.trim()) {
@@ -57,10 +59,12 @@ export function RoomSetup() {
         setIsLoading(false);
         return;
       }
+      
+      const player = { id: deviceId, name: username };
 
       await set(roomRef, {
         createdAt: serverTimestamp(),
-        players: { white: username, black: null },
+        players: { white: player, black: null },
         game: {
           fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
           history: [],
@@ -106,10 +110,12 @@ export function RoomSetup() {
           return;
         }
 
-        if (roomData.players.white === null || roomData.players.white === username) {
-          await set(ref(database, `rooms/${roomId.toUpperCase()}/players/white`), username);
-        } else if (roomData.players.black === null || roomData.players.black === username) {
-          await set(ref(database, `rooms/${roomId.toUpperCase()}/players/black`), username);
+        const player = { id: deviceId, name: username };
+
+        if (roomData.players.white === null || roomData.players.white?.id === deviceId) {
+          await set(ref(database, `rooms/${roomId.toUpperCase()}/players/white`), player);
+        } else if (roomData.players.black === null || roomData.players.black?.id === deviceId) {
+          await set(ref(database, `rooms/${roomId.toUpperCase()}/players/black`), player);
         } else {
            toast({ variant: 'destructive', title: 'Room Full', description: 'This room is already full.' });
            setIsLoading(false);

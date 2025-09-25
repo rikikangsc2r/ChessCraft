@@ -14,8 +14,8 @@ export type GameRoom = {
     turn: 'w' | 'b';
   };
   players: {
-    white: string | null;
-    black: string | null;
+    white: Player | null;
+    black: Player | null;
   };
   createdAt: number;
 };

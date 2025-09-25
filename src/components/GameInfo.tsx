@@ -3,13 +3,14 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import type { Player } from '@/lib/types';
 
 interface GameInfoProps {
   status: string;
   turn: 'w' | 'b';
   history: string[];
   playerColor: 'w' | 'b';
-  players: { white: string | null, black: string | null };
+  players: { white: Player | null, black: Player | null };
 }
 
 export function GameInfo({ status, turn, history, playerColor, players }: GameInfoProps) {
@@ -26,8 +27,8 @@ export function GameInfo({ status, turn, history, playerColor, players }: GameIn
             <p className="text-muted-foreground pt-2">{status}</p>
         </div>
         <div className="pt-2 text-sm">
-            <p><strong>White:</strong> {players.white || '...'}</p>
-            <p><strong>Black:</strong> {players.black || '...'}</p>
+            <p><strong>White:</strong> {players.white?.name || '...'}</p>
+            <p><strong>Black:</strong> {players.black?.name || '...'}</p>
         </div>
       </CardHeader>
       <CardContent className="h-full">
@@ -40,6 +41,9 @@ export function GameInfo({ status, turn, history, playerColor, players }: GameIn
                 <span>{move}</span>
               </li>
             ))}
+            {history.length === 0 && (
+              <li className="p-2 text-muted-foreground">No moves yet.</li>
+            )}
           </ol>
         </ScrollArea>
       </CardContent>

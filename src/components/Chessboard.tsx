@@ -26,10 +26,6 @@ export function ChessboardWrapper({
 }: ChessboardProps) {
   
   function onDrop(sourceSquare: Square, targetSquare: Square) {
-    if (selectedSquare) {
-      onSquareClick(targetSquare);
-      return true;
-    }
     return onMove(sourceSquare, targetSquare);
   }
 
@@ -59,7 +55,7 @@ export function ChessboardWrapper({
         onPieceDrop={onDrop}
         onSquareClick={onSquareClick}
         boardOrientation={playerColor === 'w' ? 'white' : 'black'}
-        arePiecesDraggable={!isGameOver && playerColor !== null}
+        arePiecesDraggable={!isGameOver}
         customSquareStyles={squareStyles}
       />
     </div>

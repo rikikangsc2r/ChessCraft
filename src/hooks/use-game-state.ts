@@ -33,12 +33,12 @@ export function useGameState(roomId: string) {
     if (currentGame.isCheckmate()) newStatus = `Checkmate! ${currentGame.turn() === 'w' ? 'Black' : 'White'} wins.`;
     else if (currentGame.isDraw()) newStatus = 'Draw!';
     else if (currentGame.isStalemate()) newStatus = 'Stalemate!';
-    else if (!currentPlayers.white || !currentPlayers.black) newStatus = 'Waiting for opponent...';
+    else if (!isOffline && (!currentPlayers.white || !currentPlayers.black)) newStatus = 'Waiting for opponent...';
     else newStatus = `${currentGame.turn() === 'w' ? 'White' : 'Black'} to move.`;
     if (currentGame.isCheck()) newStatus = `Check! ${newStatus}`;
     
     setStatus(newStatus);
-  }, []);
+  }, [isOffline]);
 
   useEffect(() => {
     if (isOffline) {
@@ -97,7 +97,8 @@ export function useGameState(roomId: string) {
 
           updateStatus(newGame, roomData.players);
           
-          if (newGame.isGameOver() && !status.includes('Checkmate') && !status.includes('Draw') && !status.includes('Stalemate')) {
+          const currentStatus = status;
+          if (newGame.isGameOver() && !currentStatus.includes('Checkmate') && !currentStatus.includes('Draw') && !currentStatus.includes('Stalemate')) {
               toast({ title: 'Game Over' });
           }
         } else {
@@ -122,69 +123,69 @@ export function useGameState(roomId: string) {
         unsubscribe();
       }
     };
-  }, [gameRef, roomId, deviceId, router, toast, status, isOffline, updateStatus]);
+  }, [gameRef, roomId, deviceId, router, toast, isOffline, updateStatus, status]);
 
   const makeMove = useCallback((from: Square, to: Square): boolean => {
-    if (isOffline) {
-      const gameCopy = new Chess(fen);
-      try {
-        const move = gameCopy.move({ from, to, promotion: 'q' });
-        if (move) {
-          setFen(gameCopy.fen());
-          setHistory(gameCopy.history());
-          setLastMove({from: move.from, to: move.to});
-          setGame(gameCopy);
-          updateStatus(gameCopy, players);
-          // In offline mode, automatically switch control
-          setPlayerColor(gameCopy.turn());
-          return true;
-        }
-        return false;
-      } catch (e) {
-        return false;
-      }
-    }
+    const gameCopy = new Chess(fen);
     
-    // Online move logic
-    if (!playerColor) {
-      toast({ variant: 'destructive', title: 'You are a spectator!' });
-      return false;
+    // Determine whose turn it is supposed to be.
+    // For online, it's the playerColor. For offline, it's whoever's turn it is in the game state.
+    const currentTurn = isOffline ? gameCopy.turn() : playerColor;
+    if (!currentTurn || gameCopy.turn() !== currentTurn) {
+        if (!isOffline) toast({ variant: 'destructive', title: 'Not your turn!' });
+        return false;
     }
-    if (game.turn() !== playerColor) {
-      toast({ variant: 'destructive', title: 'Not your turn!' });
-      return false;
-    }
-    
-    if (!players.white || !players.black) {
+
+    if (!isOffline && (!players.white || !players.black)) {
       toast({ variant: 'destructive', title: 'Waiting for opponent', description: 'An opponent must join before you can move.' });
       return false;
     }
 
-    const gameCopy = new Chess(game.fen());
     try {
       const move = gameCopy.move({ from, to, promotion: 'q' });
-      if (move && gameRef) {
+      if (move === null) {
+          return false; // Invalid move
+      }
+
+      if (isOffline) {
+        setFen(gameCopy.fen());
+        setHistory(gameCopy.history());
+        setLastMove({ from: move.from, to: move.to });
+        setGame(gameCopy);
+        updateStatus(gameCopy, players);
+        // No need to setPlayerColor, as we just follow game.turn()
+      } else if (gameRef) {
         set(ref(database, `rooms/${roomId}/game`), {
             fen: gameCopy.fen(),
             history: gameCopy.history(),
             lastMove: { from: move.from, to: move.to },
-            turn: gameCopy.turn()
+            turn: gameCopy.turn(),
         });
-        return true;
       }
-      return false;
+      return true;
+
     } catch (e) {
       console.log('Invalid move:', e);
       return false;
     }
-  }, [game, playerColor, roomId, toast, players, status, isOffline, fen, updateStatus, gameRef]);
+  }, [fen, isOffline, playerColor, gameRef, roomId, players, toast, updateStatus]);
 
   const handleSquareClick = useCallback((square: Square) => {
     const piece = game.get(square);
+    const turn = isOffline ? game.turn() : playerColor;
 
-    // If no piece is selected, or if the user clicks on their own piece
-    if (!selectedSquare || (piece && piece.color === playerColor)) {
-      if (piece && piece.color === playerColor) {
+    // If we are selecting a piece to move
+    if (!selectedSquare) {
+      if (piece && piece.color === turn) {
+        const moves = game.moves({ square, verbose: true }).map(m => m.to);
+        setSelectedSquare(square);
+        setValidMoves(moves);
+      }
+    } else { // A piece is already selected, try to move it
+      const moveSuccess = makeMove(selectedSquare, square);
+      // After trying to move, clear selection regardless of success
+      // If move was invalid and user clicked on another of their own pieces, re-select
+      if (!moveSuccess && piece && piece.color === turn) {
         const moves = game.moves({ square, verbose: true }).map(m => m.to);
         setSelectedSquare(square);
         setValidMoves(moves);
@@ -192,30 +193,15 @@ export function useGameState(roomId: string) {
         setSelectedSquare(null);
         setValidMoves([]);
       }
-    } else { // A piece is selected, and user clicks another square
-      const moveSuccess = makeMove(selectedSquare, square);
-      if (!moveSuccess) { // If move is invalid, maybe they want to select another piece
-         if (piece && piece.color === playerColor) {
-            const moves = game.moves({ square, verbose: true }).map(m => m.to);
-            setSelectedSquare(square);
-            setValidMoves(moves);
-         } else {
-            setSelectedSquare(null);
-            setValidMoves([]);
-         }
-      } else { // Move was successful
-        setSelectedSquare(null);
-        setValidMoves([]);
-      }
     }
-  }, [game, makeMove, selectedSquare, playerColor]);
+  }, [game, makeMove, selectedSquare, playerColor, isOffline]);
 
   return {
     fen,
     status,
     history,
     players,
-    playerColor: isOffline ? (game.turn()) : playerColor,
+    playerColor: isOffline ? game.turn() : playerColor,
     turn: game.turn(),
     isGameOver: game.isGameOver(),
     lastMove,

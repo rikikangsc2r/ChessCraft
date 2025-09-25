@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import useLocalStorage from '@/hooks/use-local-storage';
 import { useDeviceId } from '@/hooks/use-device-id';
 import { Loader2, Users, LogIn } from 'lucide-react';
+import type { GameRoom } from '@/lib/types';
 
 export function RoomSetup() {
   const router = useRouter();
@@ -95,42 +96,58 @@ export function RoomSetup() {
       return;
     }
     setIsLoading(true);
-    const roomRef = ref(database, `rooms/${roomId.toUpperCase()}`);
+    const upperCaseRoomId = roomId.toUpperCase();
+    const roomRef = ref(database, `rooms/${upperCaseRoomId}`);
 
     try {
       const snapshot = await get(roomRef);
-      if (snapshot.exists()) {
-        const roomData = snapshot.val();
-        
-        const oneHour = 60 * 60 * 1000;
-        if (Date.now() - roomData.createdAt > oneHour) {
-          toast({ variant: 'destructive', title: 'Room Expired', description: 'This room is over an hour old and has expired.' });
-          set(roomRef, null); 
-          setIsLoading(false);
-          return;
-        }
-
-        const player = { id: deviceId, name: username };
-
-        if (roomData.players.white === null || roomData.players.white?.id === deviceId) {
-          await set(ref(database, `rooms/${roomId.toUpperCase()}/players/white`), player);
-        } else if (roomData.players.black === null || roomData.players.black?.id === deviceId) {
-          await set(ref(database, `rooms/${roomId.toUpperCase()}/players/black`), player);
-        } else {
-           toast({ variant: 'destructive', title: 'Room Full', description: 'This room is already full.' });
-           setIsLoading(false);
-           return;
-        }
-
-        router.push(`/play/${roomId.toUpperCase()}`);
-      } else {
+      if (!snapshot.exists()) {
         toast({
           variant: 'destructive',
           title: 'Room Not Found',
-          description: `Room with ID "${roomId.toUpperCase()}" does not exist.`,
+          description: `Room with ID "${upperCaseRoomId}" does not exist.`,
         });
         setIsLoading(false);
+        return;
       }
+
+      const roomData: GameRoom = snapshot.val();
+      
+      const oneHour = 60 * 60 * 1000;
+      if (roomData.createdAt && (Date.now() - roomData.createdAt > oneHour)) {
+        toast({ variant: 'destructive', title: 'Room Expired', description: 'This room is over an hour old and has expired.' });
+        await set(roomRef, null); 
+        setIsLoading(false);
+        return;
+      }
+
+      const player = { id: deviceId, name: username };
+      const { white, black } = roomData.players;
+
+      const isPlayerWhite = white?.id === deviceId;
+      const isPlayerBlack = black?.id === deviceId;
+      
+      if (isPlayerWhite || isPlayerBlack) {
+        // Player is already in the room, just let them in.
+        router.push(`/play/${upperCaseRoomId}`);
+        return;
+      }
+
+      if (white && black) {
+         toast({ variant: 'destructive', title: 'Room Full', description: 'This room is already full.' });
+         setIsLoading(false);
+         return;
+      }
+      
+      // If we are here, there's at least one spot open and we are not in it.
+      if (!white) {
+        await set(ref(database, `rooms/${upperCaseRoomId}/players/white`), player);
+      } else if (!black) {
+        await set(ref(database, `rooms/${upperCaseRoomId}/players/black`), player);
+      }
+
+      router.push(`/play/${upperCaseRoomId}`);
+
     } catch (error) {
       console.error('Error joining room:', error);
       toast({

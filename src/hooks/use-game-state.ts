@@ -153,7 +153,7 @@ export function useGameState(roomId: string) {
         setLastMove({ from: move.from, to: move.to });
         setGame(gameCopy);
         updateStatus(gameCopy, players);
-        // No need to setPlayerColor, as we just follow game.turn()
+        setPlayerColor(gameCopy.turn()); // Follow the game's turn
       } else if (gameRef) {
         set(ref(database, `rooms/${roomId}/game`), {
             fen: gameCopy.fen(),
@@ -201,7 +201,7 @@ export function useGameState(roomId: string) {
     status,
     history,
     players,
-    playerColor: isOffline ? game.turn() : playerColor,
+    playerColor,
     turn: game.turn(),
     isGameOver: game.isGameOver(),
     lastMove,

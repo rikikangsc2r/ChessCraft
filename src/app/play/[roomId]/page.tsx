@@ -62,6 +62,7 @@ export default function GamePage() {
   }
   
   const roomTitle = isOffline ? "Offline Game" : `Room: ${roomId}`;
+  const effectivePlayerColor = isOffline ? turn : (playerColor || 'w');
   const playerInfo = isOffline 
     ? "You control both sides."
     : playerColor 
@@ -78,7 +79,7 @@ export default function GamePage() {
         <div className="lg:col-span-2">
           <ChessboardWrapper
             fen={fen}
-            playerColor={playerColor || 'w'}
+            playerColor={effectivePlayerColor}
             onMove={makeMove}
             isGameOver={isGameOver}
             lastMove={lastMove}

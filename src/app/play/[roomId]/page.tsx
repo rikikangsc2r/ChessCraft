@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useGameState } from '@/hooks/use-game-state';
-import { Chessboard } from '@/components/Chessboard';
+import { ChessboardWrapper } from '@/components/Chessboard';
 import { GameInfo } from '@/components/GameInfo';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -14,17 +14,13 @@ export default function GamePage() {
   const { toast } = useToast();
 
   const {
-    board,
+    fen,
     status,
     history,
     players,
     playerColor,
     turn,
     isGameOver,
-    lastMove,
-    selectedPiece,
-    setSelectedPiece,
-    legalMoves,
     makeMove,
     isLoading,
   } = useGameState(roomId);
@@ -66,15 +62,10 @@ export default function GamePage() {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <Chessboard
-            board={board}
-            turn={turn}
+          <ChessboardWrapper
+            fen={fen}
             playerColor={playerColor}
             onMove={makeMove}
-            selectedPiece={selectedPiece}
-            setSelectedPiece={setSelectedPiece}
-            legalMoves={legalMoves}
-            lastMove={lastMove}
             isGameOver={isGameOver}
           />
         </div>

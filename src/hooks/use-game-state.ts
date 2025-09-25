@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Chess, type Square, type Move, type Piece } from 'chess.js';
-import { ref, onValue, set, get, serverTimestamp } from 'firebase/database';
+import { Chess, type Square } from 'chess.js';
+import { ref, onValue, set, get } from 'firebase/database';
 import { database } from '@/lib/firebase';
 import useLocalStorage from './use-local-storage';
 import { useToast } from './use-toast';
@@ -11,14 +11,12 @@ import type { GameRoom } from '@/lib/types';
 
 export function useGameState(roomId: string) {
   const [game, setGame] = useState(new Chess());
-  const [board, setBoard] = useState(game.board());
   const [fen, setFen] = useState(game.fen());
   const [status, setStatus] = useState('');
   const [history, setHistory] = useState<string[]>([]);
   const [players, setPlayers] = useState<{ white: string | null, black: string | null }>({ white: null, black: null });
   const [playerColor, setPlayerColor] = useState<'w' | 'b'>('w');
   const [lastMove, setLastMove] = useState<{ from: Square, to: Square } | null>(null);
-  const [selectedPiece, setSelectedPiece] = useState<Square | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [username] = useLocalStorage('chess-username', '');
   const { toast } = useToast();
@@ -37,9 +35,8 @@ export function useGameState(roomId: string) {
 
         const roomData: GameRoom = snapshot.val();
         
-        // Room Expiry Check
         const oneHour = 60 * 60 * 1000;
-        if (Date.now() - roomData.createdAt > oneHour) {
+        if (roomData.createdAt && (Date.now() - roomData.createdAt > oneHour)) {
           toast({ variant: 'destructive', title: 'Room Expired', description: 'This room is over an hour old and has expired.' });
           set(gameRef, null);
           router.push('/');
@@ -60,10 +57,9 @@ export function useGameState(roomId: string) {
         if (assignedColor) {
             setPlayerColor(assignedColor);
         } else {
-            // Spectator or room full
             if (roomData.players.white !== username && roomData.players.black !== username) {
                 toast({ title: "Room is full", description: "You are now a spectator." });
-                setPlayerColor('w'); // Default to white view for spectators
+                setPlayerColor('w'); 
             }
         }
     };
@@ -75,7 +71,6 @@ export function useGameState(roomId: string) {
         const roomData: GameRoom = snapshot.val();
         const newGame = new Chess(roomData.game.fen);
         setGame(newGame);
-        setBoard(newGame.board());
         setFen(newGame.fen());
         setHistory(newGame.history());
         setPlayers(roomData.players);
@@ -100,39 +95,36 @@ export function useGameState(roomId: string) {
     });
 
     return () => unsubscribe();
-  }, [gameRef, roomId, username, router, toast]);
+  }, [gameRef, roomId, username, router, toast, status]);
 
-  const legalMoves = useMemo(() => {
-    if (!selectedPiece) return [];
-    return game.moves({ square: selectedPiece, verbose: true });
-  }, [game, selectedPiece]);
-
-  const makeMove = useCallback((from: Square, to: Square) => {
+  const makeMove = useCallback((from: Square, to: Square): boolean => {
     if (game.turn() !== playerColor) {
       toast({ variant: 'destructive', title: 'Not your turn!' });
-      return;
+      return false;
     }
     
+    const gameCopy = new Chess(game.fen());
     try {
-      const move = game.move({ from, to, promotion: 'q' }); // Auto-promote to queen for simplicity
+      const move = gameCopy.move({ from, to, promotion: 'q' });
       if (move) {
         set(ref(database, `rooms/${roomId}/game`), {
-            fen: game.fen(),
-            history: game.history(),
+            fen: gameCopy.fen(),
+            history: gameCopy.history(),
             lastMove: { from: move.from, to: move.to },
             status: status,
-            turn: game.turn()
+            turn: gameCopy.turn()
         });
-        setSelectedPiece(null);
+        return true;
       }
+      return false;
     } catch (e) {
       console.log('Invalid move:', e);
-      setSelectedPiece(null); // Deselect on invalid move attempt
+      return false;
     }
   }, [game, playerColor, roomId, status, toast]);
 
   return {
-    board,
+    board: game.board(),
     fen,
     status,
     history,
@@ -141,9 +133,6 @@ export function useGameState(roomId: string) {
     turn: game.turn(),
     isGameOver: game.isGameOver(),
     lastMove,
-    selectedPiece,
-    setSelectedPiece,
-    legalMoves,
     makeMove,
     isLoading
   };

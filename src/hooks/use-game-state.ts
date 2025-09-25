@@ -126,46 +126,48 @@ export function useGameState(roomId: string) {
   }, [gameRef, roomId, deviceId, router, toast, isOffline, updateStatus, status]);
 
   const makeMove = useCallback((from: Square, to: Square): boolean => {
-    // For online games, ensure it's the player's turn.
-    if (!isOffline) {
-      if (!playerColor || game.turn() !== playerColor) {
+    if (isOffline) {
+        const gameCopy = new Chess(game.fen());
+        const move = gameCopy.move({ from, to, promotion: 'q' });
+
+        if (move === null) return false;
+
+        setGame(gameCopy);
+        setFen(gameCopy.fen());
+        setHistory(gameCopy.history());
+        setLastMove({ from: move.from, to: move.to });
+        updateStatus(gameCopy, players);
+        return true;
+    }
+
+    if (!playerColor || game.turn() !== playerColor) {
         toast({ variant: 'destructive', title: 'Not your turn!' });
         return false;
-      }
-      if (!players.white || !players.black) {
+    }
+    if (!players.white || !players.black) {
         toast({ variant: 'destructive', title: 'Waiting for opponent', description: 'An opponent must join before you can move.' });
         return false;
-      }
     }
 
     const gameCopy = new Chess(fen);
     const move = gameCopy.move({ from, to, promotion: 'q' });
 
     if (move === null) {
-      return false; // Invalid move
+        return false;
     }
 
-    if (isOffline) {
-      // Handle offline state updates locally
-      setGame(gameCopy);
-      setFen(gameCopy.fen());
-      setHistory(gameCopy.history());
-      setLastMove({ from: move.from, to: move.to });
-      updateStatus(gameCopy, players);
-    } else if (gameRef) {
-      // Handle online state updates via Firebase
-      const newGameState = {
-        fen: gameCopy.fen(),
-        history: gameCopy.history(),
-        lastMove: { from: move.from, to: move.to },
-        turn: gameCopy.turn(),
-      };
-      set(ref(database, `rooms/${roomId}/game`), newGameState);
+    if (gameRef) {
+        const newGameState = {
+            fen: gameCopy.fen(),
+            history: gameCopy.history(),
+            lastMove: { from: move.from, to: move.to },
+            turn: gameCopy.turn(),
+        };
+        set(ref(database, `rooms/${roomId}/game`), newGameState);
     }
     
     return true;
-
-  }, [fen, isOffline, playerColor, game, gameRef, roomId, players, toast, updateStatus]);
+  }, [fen, game, isOffline, playerColor, gameRef, roomId, players, toast, updateStatus]);
 
   const handleSquareClick = useCallback((square: Square) => {
     const piece = game.get(square);
@@ -210,5 +212,3 @@ export function useGameState(roomId: string) {
     validMoves
   };
 }
-
-    

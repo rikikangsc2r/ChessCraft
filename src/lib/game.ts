@@ -1,4 +1,4 @@
-import { Game, PlayerID } from 'boardgame.io';
+import { Game } from 'boardgame.io';
 import { INVALID_MOVE } from 'boardgame.io/core';
 import { Chess, Square } from 'chess.js';
 
@@ -53,7 +53,7 @@ export const ChessGame: Game = {
         G.history = chess.history();
         G.status = getStatus(chess);
         G.turn = chess.turn();
-      } catch (e) {
+      } catch {
         return INVALID_MOVE;
       }
     },
@@ -75,7 +75,7 @@ export const ChessGame: Game = {
     },
   },
   
-  playerView: ( { G, ctx, playerID } ) => {
+  playerView: ( { G } ) => {
     return { ...G };
   },
 
@@ -87,7 +87,7 @@ export const ChessGame: Game = {
   },
   
   ai: {
-    enumerate: (G, ctx) => {
+    enumerate: (G) => {
       const chess = new Chess(G.fen);
       const moves = [];
       const possibleMoves = chess.moves({ verbose: true });

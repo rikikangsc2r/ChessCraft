@@ -13,7 +13,7 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T) => voi
       // Try to parse it as JSON, but if it fails, assume it's a plain string.
       try {
         return JSON.parse(item);
-      } catch (e) {
+      } catch {
         // If it was a plain string that's not valid JSON, it might be the intended value.
         // This handles legacy values that were not JSON stringified.
         if (typeof initialValue === 'string') {

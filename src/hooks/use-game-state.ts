@@ -114,31 +114,31 @@ export function useGameState(roomId: string) {
   }, [gameRef, roomId, deviceId, router, toast, updateStatus, status]);
 
   const makeMove = useCallback((from: Square, to: Square): boolean => {
-    // Create a copy of the game to simulate the move.
-    const gameCopy = new Chess(game.fen());
-    
-    let moveResult;
-    try {
-        if (!from || !to) {
-          console.error("Invalid move: from or to is missing");
-          return false;
-        }
-        moveResult = gameCopy.move({ from, to, promotion: 'q' });
-    } catch(e: any) {
-        console.error("Invalid move:", e.message || e);
-        return false;
-    }
-    
-    if (moveResult === null) return false;
-
     if (!playerColor || game.turn() !== playerColor) {
-        toast({ variant: 'destructive', title: 'Not your turn!' });
-        return false;
+      toast({ variant: 'destructive', title: 'Not your turn!' });
+      return false;
     }
     if (!players.white || !players.black) {
         toast({ variant: 'destructive', title: 'Waiting for opponent', description: 'An opponent must join before you can move.' });
         return false;
     }
+
+    const gameCopy = new Chess(fen);
+    let moveResult = null;
+
+    try {
+      moveResult = gameCopy.move({ from, to, promotion: 'q' });
+    } catch (e) {
+      // invalid move
+      return false;
+    }
+
+    // if move is invalid, return false
+    if (moveResult === null) {
+      return false;
+    }
+    
+    // valid move, update db
     if (gameRef) {
         const newGameState = {
             fen: gameCopy.fen(),
@@ -152,7 +152,7 @@ export function useGameState(roomId: string) {
     setSelectedSquare(null);
     setValidMoves([]);
     return true;
-  }, [game, playerColor, gameRef, roomId, players, toast]);
+  }, [game.turn(), playerColor, gameRef, roomId, players, toast, fen]);
 
   const handleSquareClick = useCallback((square: Square) => {
     if (!playerColor) return;
